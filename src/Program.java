@@ -1,21 +1,23 @@
 
 public class Program {
-	public static int cupsInBottle = 10;
+	public static int cupsInBottle = 5;
+	public static Monitor monitor;
+    public static Knight[] knights;
 	
 	public static void main(String[] args)
     {
-        int numOfKnights = 6;
-        int iterations = 10;
+        int numOfKnights = 4;
+        //int iterations = 10;
         
-        Monitor monitor = new Monitor(numOfKnights);
-        Knight[] knights = new Knight[numOfKnights];
+        monitor = new Monitor(numOfKnights);
+        knights = new Knight[numOfKnights];
         
         System.out.println("Let us begin");
         System.out.println("");
         
         for (int i = 0; i < numOfKnights; i++)
         {
-        	knights[i] = new Knight(i, monitor/*, iterations*/);
+        	knights[i] = new Knight(i, monitor/*, iterations*/, false);
         }
         
         for (int i = 0; i < numOfKnights; i++)
