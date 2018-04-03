@@ -8,6 +8,8 @@ class Monitor {
 	private States [] knightsStates;
 	final Condition [] drinkConditions;
 	final Condition [] tellConditions;
+	final Condition emptyBottle;
+	final Condition [] noCucumbers;
 	final Lock lock;
 	private Cucumbers [] cucumbers;
 	private boolean isKingTelling;
@@ -16,9 +18,11 @@ class Monitor {
 	{
 		this.numOfKnights = num;
 		knightsStates = new States[numOfKnights];
+		lock = new ReentrantLock();
 		drinkConditions = new Condition[numOfKnights];
 		tellConditions = new Condition[numOfKnights];
-		lock = new ReentrantLock();	
+		emptyBottle = lock.newCondition();	
+		noCucumbers = new Condition[numOfKnights/2];
 		cucumbers = new Cucumbers[numOfKnights / 2];
 		isKingTelling = false;
 		for ( int i = 0; i < numOfKnights; i++)
@@ -27,7 +31,10 @@ class Monitor {
 			drinkConditions[i] = lock.newCondition();
 			tellConditions[i] = lock.newCondition();
 			if(i < numOfKnights/2)
-				cucumbers[i] = new Cucumbers(10);
+			{
+				cucumbers[i] = new Cucumbers(Program.cucumbersOnPlate);
+				noCucumbers[i] = lock.newCondition();
+			}
 		}
 	}
 	
@@ -40,26 +47,48 @@ class Monitor {
 					&& (knightsStates[(i + 1) % numOfKnights] != States.drinking)
 					&& cucumbers[i/2].areAvailable())
 			{
+				if(Program.cupsInBottle == 0)
+				{
+					System.out.println("Knight " + i + " can't drink - bottle empty");
+					try {
+						emptyBottle.await();
+					} catch (InterruptedException e) {e.printStackTrace();}
+				}
 				System.out.println("Knight " + i + " drinks");
+				Program.knights[i].cupsOfWine++;
 				cucumbers[i/2].eatCucumber();
 				System.out.println(cucumbers[i/2].cucumbersAvailable + " cucumbers left");
 				knightsStates[i] = States.drinking;
 			}
-			else
+			else 
 			{
 				System.out.println("Knight " + i + " waits because at least one neightbour is drinking or there are no cucumbers");
 				//knightsStates[i] = States.drinking;//??????????
 				try
 				{
 					drinkConditions[i].await();			
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+				} catch (InterruptedException e) {e.printStackTrace();}
+				if(cucumbers[i/2].areAvailable())
+				{
+					System.out.println("Knight " + i + " can't drink - no cucumbers");
+					try {
+						noCucumbers[i/2].await();
+					} catch (InterruptedException e) {e.printStackTrace();}
+				}
+				if(Program.cupsInBottle == 0)
+				{
+					System.out.println("Knight " + i + " can't drink - bottle empty");
+					try {
+						emptyBottle.await();
+					} catch (InterruptedException e) {e.printStackTrace();}
 				}
 				System.out.println("Knight " + i + " drinks");
+				Program.knights[i].cupsOfWine++;
 				knightsStates[i] = States.drinking;
 				cucumbers[i/2].eatCucumber();
 				System.out.println(cucumbers[i/2].cucumbersAvailable + " cucumbers left");		
 			}
+			
 		}
 		finally {
 			lock.unlock();
@@ -88,6 +117,39 @@ class Monitor {
 			}
 		}
 		finally {
+			lock.unlock();
+		}
+	}
+	
+	public void fillBottle()
+	{		
+		lock.lock();
+		try
+		{
+			System.out.println("---Waiter fills the bottle");
+			Program.cupsInBottle = 3;
+			emptyBottle.signal();
+		}
+		finally 
+		{
+			lock.unlock();
+		}
+	}
+	
+	public void fillPlate()
+	{		
+		lock.lock();
+		try
+		{
+			System.out.println("---Waiter fills all plates");
+			for (int i = 0; i < numOfKnights/2; i++)
+			{
+				cucumbers[i].fillPlate();
+				noCucumbers[i].signal();
+			}
+		}
+		finally 
+		{
 			lock.unlock();
 		}
 	}

@@ -4,7 +4,7 @@ public class Knight implements Runnable{
 	public int id;
 	public Monitor monitor;
 	public Thread thread;
-	public int iterations;
+	public int cupsOfWine;
 	public boolean isKing;
 	
 	Knight(int _id, Monitor _m /*, int i*/, boolean _isKing)
@@ -13,6 +13,7 @@ public class Knight implements Runnable{
 		this.monitor = _m;
 		this.thread = new Thread(this);
 		this.thread.start();
+		this.cupsOfWine = 0;
 		this.isKing = _isKing;
 		//iterations = i;
 	}
@@ -20,7 +21,7 @@ public class Knight implements Runnable{
 	@Override
 	public void run()
 	{
-		while(Program.cupsInBottle >= 0)
+		while(this.cupsOfWine < 10)
 		{
 			sleep();
 			
@@ -33,6 +34,7 @@ public class Knight implements Runnable{
 			tell();
 			monitor.StopTelling(id);			
 		}
+		System.out.println("Knight " + id + " drunk 10 cups and is under the table");
 	}
 	
 	public void sleep()
