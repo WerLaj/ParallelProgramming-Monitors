@@ -4,7 +4,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 class Monitor {
 	private int numOfKnights;
-	private enum States { sleeping, drinking, telling};
+	private enum States { sleeping, drinking, telling, waitingToTell};
 	private States [] knightsStates;
 	final Condition [] drinkConditions;
 	final Condition [] tellConditions;
@@ -64,10 +64,14 @@ class Monitor {
 			{
 				System.out.println("Knight " + i + " waits because at least one neightbour is drinking or there are no cucumbers");
 				//knightsStates[i] = States.drinking;//??????????
-				try
+				if(knightsStates[(i - 1 + numOfKnights) % numOfKnights]  != States.drinking
+						&& (knightsStates[(i + 1) % numOfKnights] != States.drinking))
 				{
-					drinkConditions[i].await();			
-				} catch (InterruptedException e) {e.printStackTrace();}
+					try				
+					{
+						drinkConditions[i].await();			
+					} catch (InterruptedException e) {e.printStackTrace();}
+				}
 				if(cucumbers[i/2].areAvailable())
 				{
 					System.out.println("Knight " + i + " can't drink - no cucumbers");
@@ -101,7 +105,7 @@ class Monitor {
 		try
 		{
 			System.out.println("Knight "+i+" puts down plate and cup");
-			//knightsStates[i] = States.telling; //????????????
+			knightsStates[i] = States.waitingToTell;
 			int left = (i - 1 + numOfKnights) % numOfKnights;
 			int leftleft = (i - 2 + numOfKnights) % numOfKnights;
 			if(knightsStates[left] == States.sleeping 
@@ -159,7 +163,9 @@ class Monitor {
 		lock.lock();
 		try
 		{
-			if(Program.knights[i].isKing == true)
+			if(Program.knights[i].isKing == true 
+					&& knightsStates[(i - 1 + numOfKnights) % numOfKnights] != States.telling 
+					&& knightsStates[(i+1)%numOfKnights] != States.telling)
 			{
 				System.out.println("KING " + i + " tells");
 				knightsStates[i] = States.telling;
@@ -197,20 +203,40 @@ class Monitor {
 		lock.lock();
 		try
 		{
-			System.out.println("Knight " + i + " stops telling");
-			knightsStates[i] = States.sleeping; 
-			int left = (i - 1 + numOfKnights) % numOfKnights;
-			int leftleft = (i - 2 + numOfKnights) % numOfKnights;
-			if(knightsStates[left] == States.drinking 
-					&& knightsStates[leftleft] != States.telling)
+			if(Program.knights[i].isKing == true)
 			{
-				tellConditions[left].signal();
+				System.out.println("Knight " + i + " stops telling");
+				knightsStates[i] = States.sleeping; 
+				for (int j = 0; j < numOfKnights; j++)
+				{
+					if(j != i)
+					{
+						if( (knightsStates[(j+1)%numOfKnights] == States.waitingToTell) 
+								&& (knightsStates[(j+2)%numOfKnights] != States.telling) 
+								&& (knightsStates[(j)%numOfKnights] != States.telling))
+						{
+							tellConditions[(j + 1) % numOfKnights].signal();
+						}
+					}
+				}
 			}
-			
-			if( (knightsStates[(i+1)%numOfKnights] == States.drinking) 
-					&& (knightsStates[(i+2)%numOfKnights] != States.telling) )
+			else
 			{
-				tellConditions[(i + 1) % numOfKnights].signal();
+				System.out.println("Knight " + i + " stops telling");
+				knightsStates[i] = States.sleeping; 
+				int left = (i - 1 + numOfKnights) % numOfKnights;
+				int leftleft = (i - 2 + numOfKnights) % numOfKnights;
+				if(knightsStates[left] == States.waitingToTell 
+						&& knightsStates[leftleft] != States.telling)
+				{
+					tellConditions[left].signal();
+				}
+				
+				if( (knightsStates[(i+1)%numOfKnights] == States.waitingToTell) 
+						&& (knightsStates[(i+2)%numOfKnights] != States.telling) )
+				{
+					tellConditions[(i + 1) % numOfKnights].signal();
+				}
 			}
 		}
 		finally 
