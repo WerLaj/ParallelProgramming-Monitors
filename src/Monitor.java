@@ -22,7 +22,7 @@ class Monitor {
 		drinkConditions = new Condition[numOfKnights];
 		tellConditions = new Condition[numOfKnights];
 		emptyBottle = lock.newCondition();	
-		noCucumbers = new Condition[numOfKnights/2];
+		noCucumbers = new Condition[numOfKnights / 2];
 		cucumbers = new Cucumbers[numOfKnights / 2];
 		isKingTelling = false;
 		for ( int i = 0; i < numOfKnights; i++)
@@ -47,6 +47,7 @@ class Monitor {
 					&& (knightsStates[(i + 1) % numOfKnights] != States.drinking)
 					&& cucumbers[i/2].areAvailable())
 			{
+				knightsStates[i] = States.drinking;
 				if(Program.cupsInBottle == 0)
 				{
 					System.out.println("Knight " + i + " can't drink - bottle empty");
@@ -57,28 +58,25 @@ class Monitor {
 				System.out.println("Knight " + i + " drinks");
 				Program.knights[i].cupsOfWine++;
 				cucumbers[i/2].eatCucumber();
-				System.out.println(cucumbers[i/2].cucumbersAvailable + " cucumbers left");
-				knightsStates[i] = States.drinking;
 			}
 			else 
 			{
-				System.out.println("Knight " + i + " waits because at least one neightbour is drinking or there are no cucumbers");
-				//knightsStates[i] = States.drinking;//??????????
-				if(knightsStates[(i - 1 + numOfKnights) % numOfKnights]  != States.drinking
-						&& (knightsStates[(i + 1) % numOfKnights] != States.drinking))
-				{
-					try				
-					{
-						drinkConditions[i].await();			
-					} catch (InterruptedException e) {e.printStackTrace();}
-				}
-				if(cucumbers[i/2].areAvailable())
+				if(!cucumbers[i/2].areAvailable())
 				{
 					System.out.println("Knight " + i + " can't drink - no cucumbers");
 					try {
 						noCucumbers[i/2].await();
 					} catch (InterruptedException e) {e.printStackTrace();}
 				}
+				if(knightsStates[(i - 1 + numOfKnights) % numOfKnights]  == States.drinking
+						|| (knightsStates[(i + 1) % numOfKnights] == States.drinking))
+				{
+					try				
+					{
+						drinkConditions[i].await();			
+					} catch (InterruptedException e) {e.printStackTrace();}
+				}
+				knightsStates[i] = States.drinking;
 				if(Program.cupsInBottle == 0)
 				{
 					System.out.println("Knight " + i + " can't drink - bottle empty");
@@ -88,9 +86,7 @@ class Monitor {
 				}
 				System.out.println("Knight " + i + " drinks");
 				Program.knights[i].cupsOfWine++;
-				knightsStates[i] = States.drinking;
-				cucumbers[i/2].eatCucumber();
-				System.out.println(cucumbers[i/2].cucumbersAvailable + " cucumbers left");		
+				cucumbers[i/2].eatCucumber();	
 			}
 			
 		}
@@ -131,7 +127,7 @@ class Monitor {
 		try
 		{
 			System.out.println("---Waiter fills the bottle");
-			Program.cupsInBottle = 3;
+			Program.cupsInBottle = Program.cupsInBottle;
 			emptyBottle.signal();
 		}
 		finally 
@@ -165,7 +161,7 @@ class Monitor {
 		{
 			if(Program.knights[i].isKing == true 
 					&& knightsStates[(i - 1 + numOfKnights) % numOfKnights] != States.telling 
-					&& knightsStates[(i+1)%numOfKnights] != States.telling)
+					&& knightsStates[(i + 1) % numOfKnights] != States.telling)
 			{
 				System.out.println("KING " + i + " tells");
 				knightsStates[i] = States.telling;
@@ -180,7 +176,8 @@ class Monitor {
 			}
 			else
 			{
-				System.out.println("Knight " + i + " waits because at least one neightbour is telling");
+				System.out.println("Knight " + i + " waits because at least one neightbour is telling or king is telling");
+				knightsStates[i] = States.waitingToTell;
 				//knightsStates[i] = States.telling;//??????????
 				try {
 					tellConditions[i].await();
@@ -188,8 +185,18 @@ class Monitor {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				System.out.println("Knight " + i + " tells");;
-				knightsStates[i] = States.telling;	
+				if(Program.knights[i].isKing == true)
+				{
+					System.out.println("KING " + i + " tells");;
+					knightsStates[i] = States.telling;	
+					isKingTelling = true;
+				}
+				else if(Program.knights[i].isKing == false 
+						&& isKingTelling == false)
+				{
+					System.out.println("Knight " + i + " tells");
+					knightsStates[i] = States.telling;
+				}
 			}
 		}
 		finally 
@@ -205,17 +212,23 @@ class Monitor {
 		{
 			if(Program.knights[i].isKing == true)
 			{
-				System.out.println("Knight " + i + " stops telling");
+				System.out.println("KING " + i + " stops telling");
 				knightsStates[i] = States.sleeping; 
+				int lastSignal = -1;
 				for (int j = 0; j < numOfKnights; j++)
-				{
+				{					
 					if(j != i)
 					{
 						if( (knightsStates[(j+1)%numOfKnights] == States.waitingToTell) 
 								&& (knightsStates[(j+2)%numOfKnights] != States.telling) 
-								&& (knightsStates[(j)%numOfKnights] != States.telling))
+								&& (knightsStates[(j)%numOfKnights] != States.telling)
+								/*&& (knightsStates[(j)%numOfKnights] != States.waitingToTell)*/)
 						{
-							tellConditions[(j + 1) % numOfKnights].signal();
+							if(lastSignal != (j - 1))
+							{
+								lastSignal = j;
+								tellConditions[(j + 1) % numOfKnights].signal();
+							}
 						}
 					}
 				}
